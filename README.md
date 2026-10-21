@@ -32,6 +32,11 @@ scripts/deploy.sh --all --restart-runner   # agents + job hook on every runner
 scripts/install-hub.sh                     # the hub, on this host
 ```
 
+`--all` means every tailscale peer named `github-actions-runner-*`.
+Pass `--prefix my-runner-` to both scripts if yours are named
+differently, or name the hosts outright: `scripts/deploy.sh host1 host2`
+and `scripts/install-hub.sh --runner name1=host1 --runner name2=host2`.
+
 The dashboard is at `http://<hub>:9430/`. `deploy.sh` copies this
 directory to `~/runner-watch` on each runner, installs the agent as a
 yeet service on port 9420, wires the job hook into the runner's `.env`
