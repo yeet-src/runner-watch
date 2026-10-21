@@ -30,8 +30,11 @@ host, and ssh from the hub to the runners. On the hub:
    ```
 
    > This uses tailscale to find every host whose name starts with the
-   > prefix. To skip discovery, name the hosts instead:
-   > `scripts/deploy.sh host1 host2 --restart-runner`.
+   > prefix and installs over ssh. It logs in as you unless you set
+   > `SSH_USER=runner` or write `user@host`; deploying as the runner's
+   > own user is simplest, since that user runs the job hook. To skip
+   > discovery, name the hosts: `scripts/deploy.sh user@host1 user@host2
+   > --restart-runner`.
 
 3. Start the hub and open it.
 
