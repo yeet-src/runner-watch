@@ -126,58 +126,13 @@ the chunked body. Notable series: `runner_watch_health_level`,
 `runner_watch_job_wait{kind}`, `runner_watch_job_elapsed_seconds`,
 `runner_watch_host_cpu_split_ratio{kind}`, `runner_watch_iface_up`.
 
-## Layout
+## Planned improvements
 
-| file | role |
-|---|---|
-| `agent.js` | the agent isolate: one graph query per tick, process-tree matching, hook messages, history, the frame |
-| `metrics.js`, `llms.js` | per-request exporters on the agent |
-| `hub-llms.js` | the hub's `/llms.txt` |
-| `lib/runner.js` | the runner process model: listeners, workers, job processes, containers, repository, step labels |
-| `lib/diag.js` | diagnosis: socket join, wait classification, host pressure, interfaces, sensors, health |
-| `portal.js` | OSC frame encoding |
-| `agent.service.toml` | the agent service; `install-agent.sh` fills in directory, name and port |
-| `hooks/` | the job hook: `job-started.sh` and `job-completed.sh` wrap `job-hook.sh` |
-| `public/index.html` | the dashboard, no dependencies |
-| `scripts/` | install and deploy |
-
-## How it works
-
-A GitHub runner is a `Runner.Listener` process with a `Runner.Worker`
-child while it has a job; each step is a child of the worker. The repo
-comes from `_work/<repo>/<repo>` (or `/__w/<repo>/<repo>` in a
-container) in a process's cwd or command line. A job's containers are
-those that mount the runner's `_work` tree or are named by a `docker
-exec` in the worker's tree, and their processes are matched by cgroup.
-
-Every tick the agent emits one frame on its tty, which the service
-mounts at `/tty`. Every five seconds it takes a slower sample: the tcp
-tables, the open fds of the listener, worker and the step's leaf
-processes, interfaces and sensors. Joining fds to the tcp table by socket
-inode is what tells it whether the listener is long-polling GitHub and
-what a step is connected to.
-
-The job hook runs when the runner starts and finishes a job, with the
-`GITHUB_*` variables set. It writes one JSON line into the agent's tty
-with `yeet dial` and, on start, tails the worker's `_diag/Worker_*.log`
-for `Processing step:` and `Step result:` lines so steps carry their
-display names. Without the hook, steps are labelled by what they ran.
-
-The hub is a yeet service with a static route and one `http://` upstream
-route per runner. The daemon proxies websockets and plain requests, and
-the hub's manifest includes the routes of every upstream it can reach.
-The dashboard reads `runners.json`, then the manifest, dials each
-`/r/<name>/tty`, and aggregates in the page.
-
-## Limits
-
-- Disk usage is not in the graph yet, so it is not shown.
-- Isolates have no network access, so the hub's `/llms.txt` indexes the
-  runners rather than aggregating them, and there are no active dns or
-  connect probes.
-- Whether the listener's remote is a GitHub address range is best
-  effort; the established socket itself is the signal.
-- History, jobs completed and busy ratio start when the agent starts.
-- A shared tty hangs up for every peer when any peer sends end-of-input,
-  and `yeet dial` sends it when its stdin closes or on SIGTERM. The hook
-  writes through a FIFO and kills its dial for that reason.
+- Runners registering with the hub on their own, instead of a rerun of
+  `install-hub.sh` or a mounted route.
+- Disk usage, once the system graph exposes filesystems.
+- A fleet-wide `/llms.txt` on the hub that aggregates the runners,
+  which needs isolates to be able to dial out.
+- Active dns and connect probes from the runner.
+- History that survives an agent restart; today jobs completed, busy
+  ratio and step timings start over with the agent.
