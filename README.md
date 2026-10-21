@@ -12,44 +12,50 @@ anything that would rather read text. Nothing runs inside the job, and
 the runner software is untouched apart from an optional job hook that
 supplies step names and run links.
 
-## Requirements
+## Quick start
 
-- Linux hosts with [yeet](https://yeet.cx) installed and logged in, on
-  the runners and on the hub.
-- The runners reachable from the hub by name, for example over
-  tailscale. The install script discovers `github-actions-runner-*`
-  peers from `tailscale status`; any resolvable host works with
-  `--runner NAME=HOST`.
-- SSH access from the hub to the runners for `deploy.sh`; otherwise run
-  `install-agent.sh` on each runner by hand.
+You need yeet installed and logged in on the runners and on one hub
+host, and ssh from the hub to the runners. On the hub:
 
-## Install
+1. Get the code.
 
-From a checkout on the hub host:
+   ```sh
+   git clone https://github.com/yeet-src/runner-watch.git && cd runner-watch
+   ```
 
-```sh
-scripts/deploy.sh --all --restart-runner   # agents + job hook on every runner
-scripts/install-hub.sh                     # the hub, on this host
-```
+2. Put the agent on every runner.
 
-`--all` means every tailscale peer named `github-actions-runner-*`.
-Pass `--prefix my-runner-` to both scripts if yours are named
-differently, or name the hosts outright: `scripts/deploy.sh host1 host2`
-and `scripts/install-hub.sh --runner name1=host1 --runner name2=host2`.
+   ```sh
+   scripts/deploy.sh --all --restart-runner
+   ```
 
-The dashboard is at `http://<hub>:9430/`. `deploy.sh` copies this
-directory to `~/runner-watch` on each runner, installs the agent as a
-yeet service on port 9420, wires the job hook into the runner's `.env`
-and checks the agent answers from here. It is idempotent; rerun it to
-roll out a change. `--restart-runner` restarts an idle runner so the
-hook takes effect, since the runner reads `.env` only at startup.
+3. Start the hub and open it.
+
+   ```sh
+   scripts/install-hub.sh
+   ```
+
+   http://localhost:9430/
+
+That's a fleet of tailscale peers named `github-actions-runner-*`. If
+yours are named differently, add `--prefix my-runner-` to both scripts,
+or name the hosts: `scripts/deploy.sh host1 host2` and
+`scripts/install-hub.sh --runner name1=host1 --runner name2=host2`.
+
+### Details
+
+`deploy.sh` copies this directory to `~/runner-watch` on each runner,
+installs the agent as a yeet service on port 9420, wires the job hook
+into the runner's `.env`, and checks the agent answers from here. Rerun
+it to roll out a change. `--restart-runner` restarts an idle runner so
+the hook takes effect, since the runner reads `.env` only at startup.
 
 The runner executes the job hook as its own user, which must be able to
-read `~/runner-watch/hooks` in the login user's home and the install
-needs to write the runner's `.env`. The simplest arrangement is to
-deploy as the runner's user, `SSH_USER=runner scripts/deploy.sh --all`;
-otherwise `install-hooks.sh` prints a note when the runner's user cannot
-read the hooks. Set `SUDO=sudo` if the yeet socket needs it.
+read `~/runner-watch/hooks` in the login user's home, and the install
+writes the runner's `.env`. The simplest arrangement is to deploy as the
+runner's user: `SSH_USER=runner scripts/deploy.sh --all`. Otherwise
+`install-hooks.sh` prints a note when the runner's user cannot read the
+hooks. Set `SUDO=sudo` if the yeet socket needs it.
 
 To add a runner later, deploy to it and rerun `install-hub.sh`, or
 mount the route on the running hub:
