@@ -8,6 +8,9 @@
 #   scripts/deploy.sh --all                     every github-actions-runner-* in tailscale
 #   scripts/deploy.sh --prefix my-runner- --all
 #
+#   --no-hub           do not (re)install the hub on this host afterwards
+#   --hub-port 9430    hub web server port
+#
 #   SSH_USER=ci   user to log in as (default: your own)
 #   SSH_OPTS=…    extra ssh flags, e.g. "-i ~/.ssh/runners"
 #   PORT=9420     agent port
@@ -22,12 +25,16 @@ PORT=${PORT:-9420}
 PREFIX=github-actions-runner-
 ALL=
 RESTART=
+HUB=1
+HUB_PORT=9430
 declare -a HOSTS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --all) ALL=1; shift ;;
     --prefix) PREFIX=$2; shift 2 ;;
     --restart-runner) RESTART=--restart; shift ;;
+    --no-hub) HUB=; shift ;;
+    --hub-port) HUB_PORT=$2; shift 2 ;;
     -*) echo "unknown flag $1" >&2; exit 2 ;;
     *) HOSTS+=("$1"); shift ;;
   esac
@@ -68,5 +75,19 @@ done
 
 echo
 echo "ok: ${#ok[@]}  failed: ${#failed[@]}${failed[*]:+ (${failed[*]})}"
-[ ${#ok[@]} -gt 0 ] && echo "next: scripts/install-hub.sh$(for h in "${ok[@]}"; do printf ' --runner %s=%s' "$h" "$h"; done)"
+
+# The hub on this host, with the same roster: by prefix when the hosts
+# came from tailscale (so a runner that was down today is still listed),
+# otherwise the hosts as given.
+if [ -n "$HUB" ] && [ ${#ok[@]} -gt 0 ]; then
+  echo
+  if [ -n "$ALL" ]; then
+    "$HERE/scripts/install-hub.sh" --port "$HUB_PORT" --agent-port "$PORT" --prefix "$PREFIX"
+  else
+    args=(); for h in "${HOSTS[@]}"; do n=${h#*@}; args+=(--runner "$n=$n"); done
+    "$HERE/scripts/install-hub.sh" --port "$HUB_PORT" --agent-port "$PORT" "${args[@]}"
+  fi
+elif [ ${#ok[@]} -gt 0 ]; then
+  echo "hub skipped; install it with scripts/install-hub.sh${ALL:+ --prefix $PREFIX}$([ -n "$ALL" ] || for h in "${HOSTS[@]}"; do printf ' --runner %s=%s' "${h#*@}" "${h#*@}"; done)"
+fi
 [ ${#failed[@]} -eq 0 ]

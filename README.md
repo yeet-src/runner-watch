@@ -23,28 +23,21 @@ host, and ssh from the hub to the runners. On the hub:
    git clone https://github.com/yeet-src/runner-watch.git && cd runner-watch
    ```
 
-2. Put the agent on every runner.
+2. Deploy.
 
    ```sh
    scripts/deploy.sh --all --prefix github-actions-runner- --restart-runner
    ```
 
    > This uses tailscale to find every host whose name starts with the
-   > prefix and installs over ssh. It logs in as you unless you set
+   > prefix, installs the agent on each over ssh, then installs the hub
+   > on this host with the same roster. It logs in as you unless you set
    > `SSH_USER=runner` or write `user@host`; deploying as the runner's
    > own user is simplest, since that user runs the job hook. To skip
    > discovery, name the hosts: `scripts/deploy.sh user@host1 user@host2
    > --restart-runner`.
 
-3. Start the hub and open it.
-
-   ```sh
-   scripts/install-hub.sh --prefix github-actions-runner-
-   ```
-
-   > Same discovery as above, or `--runner name1=host1 --runner name2=host2`.
-
-   http://localhost:9430/
+3. Open http://localhost:9430/
 
 ### Details
 
@@ -61,8 +54,8 @@ runner's user: `SSH_USER=runner scripts/deploy.sh --all`. Otherwise
 `install-hooks.sh` prints a note when the runner's user cannot read the
 hooks. Set `SUDO=sudo` if the yeet socket needs it.
 
-To add a runner later, deploy to it and rerun `install-hub.sh`, or
-mount the route on the running hub:
+To add a runner later, `scripts/deploy.sh --all` again, or mount the
+route on the running hub:
 
 ```sh
 yeet service mount runner-watch-hub/web -L /r/<name> -U http://<name>:9420/
@@ -70,7 +63,7 @@ yeet service mount runner-watch-hub/web -L /r/<name> -U http://<name>:9420/
 
 | script | what |
 |---|---|
-| `scripts/deploy.sh HOST… \| --all [--prefix P] [--restart-runner]` | install agent and hook on runners over ssh (`SSH_USER`, `SSH_OPTS`, `SUDO`, `PORT`) |
+| `scripts/deploy.sh HOST… \| --all [--prefix P] [--restart-runner] [--no-hub]` | install agent and hook on runners over ssh, then the hub here (`SSH_USER`, `SSH_OPTS`, `SUDO`, `PORT`) |
 | `scripts/install-agent.sh [--name N] [--port P] [--dev]` | install the agent service on the current host |
 | `scripts/install-hooks.sh [--root DIR] [--restart]` | wire the job hook into the runner's `.env` on the current host |
 | `scripts/install-hub.sh [--port P] [--prefix P] [--runner NAME=HOST…] [--dry-run]` | install the hub on the current host |
