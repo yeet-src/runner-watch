@@ -26,21 +26,22 @@ host, and ssh from the hub to the runners. On the hub:
 2. Put the agent on every runner.
 
    ```sh
-   scripts/deploy.sh --all --restart-runner
+   scripts/deploy.sh --all --prefix github-actions-runner- --restart-runner
    ```
+
+   > This uses tailscale to find every host whose name starts with the
+   > prefix. To skip discovery, name the hosts instead:
+   > `scripts/deploy.sh host1 host2 --restart-runner`.
 
 3. Start the hub and open it.
 
    ```sh
-   scripts/install-hub.sh
+   scripts/install-hub.sh --prefix github-actions-runner-
    ```
 
-   http://localhost:9430/
+   > Same discovery as above, or `--runner name1=host1 --runner name2=host2`.
 
-That's a fleet of tailscale peers named `github-actions-runner-*`. If
-yours are named differently, add `--prefix my-runner-` to both scripts,
-or name the hosts: `scripts/deploy.sh host1 host2` and
-`scripts/install-hub.sh --runner name1=host1 --runner name2=host2`.
+   http://localhost:9430/
 
 ### Details
 
