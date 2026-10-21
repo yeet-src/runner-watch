@@ -44,6 +44,13 @@ and checks the agent answers from here. It is idempotent; rerun it to
 roll out a change. `--restart-runner` restarts an idle runner so the
 hook takes effect, since the runner reads `.env` only at startup.
 
+The runner executes the job hook as its own user, which must be able to
+read `~/runner-watch/hooks` in the login user's home and the install
+needs to write the runner's `.env`. The simplest arrangement is to
+deploy as the runner's user, `SSH_USER=runner scripts/deploy.sh --all`;
+otherwise `install-hooks.sh` prints a note when the runner's user cannot
+read the hooks. Set `SUDO=sudo` if the yeet socket needs it.
+
 To add a runner later, deploy to it and rerun `install-hub.sh`, or
 mount the route on the running hub:
 
