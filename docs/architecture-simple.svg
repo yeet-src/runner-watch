@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 460" width="900" height="460" font-family="Iosevka, 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+<defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><rect width="1" height="5" fill="#2a2a2d"/></pattern></defs>
+<rect width="900" height="460" fill="#000000"/>
+<line x1="246" y1="230.0" x2="592" y2="90" stroke="#ffe500" stroke-width="1.5" stroke-opacity=".8"/>
+<line x1="246" y1="230.0" x2="592" y2="215" stroke="#ffe500" stroke-width="1.5" stroke-opacity=".8"/>
+<line x1="246" y1="230.0" x2="592" y2="375" stroke="#ffe500" stroke-width="1.5" stroke-opacity=".8"/>
+<line x1="246" y1="230.0" x2="576" y2="297" stroke="#ffe500" stroke-width="1.5" stroke-opacity=".35" stroke-dasharray="4 5"/>
+<text x="650" y="304" fill="#ffe500" font-size="26" text-anchor="middle" letter-spacing=".2em">···</text>
+<circle cx="186" cy="236.0" r="66" fill="url(#hatch)"/><circle cx="180" cy="230.0" r="66" fill="#0b0b0d" stroke="#ffe500" stroke-width="1.5"/><text x="180" y="231.0" fill="#e8e6df" font-size="14" font-weight="600" text-anchor="middle">hub</text><text x="180" y="248.0" fill="#8b8b8b" font-size="10.5" text-anchor="middle">dashboard · :9430</text>
+<circle cx="656" cy="96" r="56" fill="url(#hatch)"/><circle cx="650" cy="90" r="56" fill="#0b0b0d" stroke="#8b8b8b" stroke-width="1.5"/><text x="650" y="91" fill="#e8e6df" font-size="14" font-weight="600" text-anchor="middle">runner-1</text><text x="650" y="108" fill="#8b8b8b" font-size="10.5" text-anchor="middle">tty · metrics</text>
+<circle cx="656" cy="221" r="56" fill="url(#hatch)"/><circle cx="650" cy="215" r="56" fill="#0b0b0d" stroke="#8b8b8b" stroke-width="1.5"/><text x="650" y="216" fill="#e8e6df" font-size="14" font-weight="600" text-anchor="middle">runner-2</text><text x="650" y="233" fill="#8b8b8b" font-size="10.5" text-anchor="middle">tty · metrics</text>
+<circle cx="656" cy="381" r="56" fill="url(#hatch)"/><circle cx="650" cy="375" r="56" fill="#0b0b0d" stroke="#8b8b8b" stroke-width="1.5"/><text x="650" y="376" fill="#e8e6df" font-size="14" font-weight="600" text-anchor="middle">runner-n</text><text x="650" y="393" fill="#8b8b8b" font-size="10.5" text-anchor="middle">tty · metrics</text>
+<text x="180" y="446" fill="#8b8b8b" font-size="11" text-anchor="middle">one yeet service, proxies every runner</text>
+<text x="650" y="446" fill="#8b8b8b" font-size="11" text-anchor="middle">github actions runners, each a yeet service</text>
+<text x="24" y="30" fill="#ffe500" font-size="14" font-weight="500">yeet <tspan fill="#e8e6df">runner-watch</tspan></text>
+</svg>
