@@ -24,7 +24,32 @@
   h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: .01em; }
   h1::before { content: "yeet"; color: var(--yellow); font-family: var(--mono); font-weight: 500; margin-right: 8px; }
   header .sub { color: var(--ink-3); font-size: 13px; font-family: var(--mono); }
+  header .views { display: flex; border: 1px solid var(--line); font-family: var(--mono); font-size: 12px; }
+  header .views button { background: none; border: 0; color: var(--ink-3); font: inherit; padding: 3px 10px; cursor: pointer; }
+  header .views button.on { color: var(--surface); background: var(--yellow); }
+  header .views button:not(.on):hover { color: var(--yellow); }
   header .links { margin-left: auto; display: flex; gap: 14px; font-family: var(--mono); font-size: 12px; }
+  .gantt { background: var(--card); border: 1px solid var(--line); padding: 12px 14px 10px; }
+  .gantt .bar-top { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+  .gantt .bar-top .win { display: flex; border: 1px solid var(--line); }
+  .gantt .bar-top .win button { background: none; border: 0; color: var(--ink-3); font: inherit; padding: 2px 8px; cursor: pointer; }
+  .gantt .bar-top .win button.on { color: var(--surface); background: var(--yellow); }
+  .gantt .legend { margin-left: auto; display: flex; gap: 14px; }
+  .gantt .legend i { display: inline-block; width: 10px; height: 8px; margin-right: 5px; vertical-align: -1px; }
+  .gantt svg { display: block; width: 100%; }
+  .gantt .lane-bg:nth-child(even) { fill: var(--surface); }
+  .gantt text { font-family: var(--mono); fill: var(--ink-2); font-size: 11px; }
+  .gantt text.lane { fill: var(--ink); font-weight: 600; font-family: var(--sans); font-size: 12.5px; }
+  .gantt text.lane.dim { fill: var(--ink-4); font-weight: 400; }
+  .gantt text.tick { fill: var(--ink-4); font-size: 10.5px; }
+  .gantt line.grid { stroke: var(--line-2); } .gantt line.now { stroke: var(--yellow); stroke-dasharray: 3 3; }
+  .gantt rect.job { fill: #3a3a3e; } .gantt rect.job.live { fill: var(--yellow); animation: pulse 1.2s ease-in-out infinite; }
+  .gantt rect.job.failed { fill: #5a2a2a; } .gantt rect.fail { fill: var(--critical); }
+  .gantt line.step { stroke: var(--surface); stroke-opacity: .8; }
+  .gantt text.lbl { fill: var(--ink); font-size: 10.5px; pointer-events: none; } .gantt text.lbl.onlive { fill: var(--surface); font-weight: 600; }
+  .gantt a rect:hover { stroke: var(--ink); stroke-width: 1; }
+  body.view-timeline .list, body.view-timeline details { display: none; }
+  body.view-list .gantt { display: none; }
   header .links a { color: var(--ink-3); text-decoration: none; border-bottom: 1px solid var(--line); }
   header .links a:hover { color: var(--yellow); border-color: var(--yellow); }
   .num { font-variant-numeric: tabular-nums; font-family: var(--mono); }
@@ -135,9 +160,11 @@
   <img class="logo" src="yeet.png" alt="yeet" width="34" height="32">
   <h1>runner-watch</h1>
   <span class="sub" id="sub">connecting…</span>
+  <nav class="views" id="views"><button data-view="list">list</button><button data-view="timeline">timeline</button></nav>
   <nav class="links"><a href="llms.txt">llms.txt</a><a href=".well-known/yeet/manifest.json">manifest</a></nav>
 </header>
 <section class="tiles" id="tiles"></section>
+<section class="gantt" id="gantt"></section>
 <section class="list" id="list"><div class="cols"><span>runner</span><span>state</span><span>health</span><span>cpu</span><span>memory</span><span class="r">load</span><span>job</span><span class="r">elapsed</span><span class="r">done</span><span class="r">busy</span></div></section>
 <details><summary>Table view</summary><table class="tbl" id="tbl"></table></details>
 <script>
@@ -370,6 +397,56 @@
     }).join("");
     $("tbl").innerHTML = `<thead><tr><th>runner</th><th>state</th><th>health</th><th class="num">cpu</th><th class="num">mem</th><th class="num">load</th><th>job</th><th class="num">elapsed</th><th class="num">done</th></tr></thead><tbody>${rows}</tbody>`;
   }
+  // ---------------------------------------------------------------- timeline
+  // One lane per runner, bars for completed jobs from each agent's
+  // history plus the running job, drawn against this browser's clock
+  // (agent timestamps shifted by the measured skew).
+  let view = "list", win = 60 * 60 * 1000;
+  try { view = localStorage.getItem("rw.view") || view; win = Number(localStorage.getItem("rw.win")) || win; } catch { /* defaults */ }
+  const WINS = [["15m", 15 * 60e3], ["1h", 60 * 60e3], ["3h", 3 * 3600e3], ["6h", 6 * 3600e3], ["24h", 24 * 3600e3]];
+  function setView(v) { view = v; document.body.className = `view-${v}`; for (const b of $("views").querySelectorAll("button")) b.classList.toggle("on", b.dataset.view === v); try { localStorage.setItem("rw.view", v); } catch { /* fine */ } render(); }
+  $("views").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setView(b.dataset.view); });
+  $("gantt").addEventListener("click", (e) => { const b = e.target.closest("button[data-win]"); if (b) { win = Number(b.dataset.win); try { localStorage.setItem("rw.win", win); } catch { /* fine */ } render(); } });
+  const tickStep = (w) => [60e3, 5 * 60e3, 10 * 60e3, 15 * 60e3, 30 * 60e3, 3600e3, 2 * 3600e3, 4 * 3600e3].find((t) => w / t <= 12) ?? 4 * 3600e3;
+  function renderGantt(order) {
+    const now = Date.now(), from = now - win;
+    const LEFT = 200, RIGHT = 16, TOP = 22, LANE = 28, BOT = 24;
+    const width = Math.max(600, $("gantt").clientWidth - 28), plot = width - LEFT - RIGHT;
+    const x = (t) => LEFT + Math.max(0, Math.min(1, (t - from) / win)) * plot;
+    const parts = [];
+    let y = TOP;
+    order.forEach((r, i) => {
+      const f = r.frame, skew = r.skew ?? 0, live = f && state(r) !== "off" && state(r) !== "stalled";
+      parts.push(`<rect class="lane-bg" x="0" y="${y}" width="${width}" height="${LANE}" fill="transparent"/>`);
+      parts.push(`<text class="lane${live ? "" : " dim"}" x="12" y="${y + LANE / 2 + 4}">${esc(r.name)}</text>`);
+      if (f) {
+        const jobs = [...f.history.map((j) => ({ ...j, done: true })), ...f.runners.filter((x) => x.job).map((x) => ({ ...x.job, endedAt: f.ts, done: false }))];
+        for (const j of jobs) {
+          const s = j.startedAt + skew, e = (j.done ? j.endedAt : now - skew) + skew;
+          if (e < from || s > now) continue;
+          const x0 = x(s), x1 = Math.max(x(e), x0 + 2), w = x1 - x0;
+          const failed = j.done && (j.steps ?? []).some((st) => /fail|cancel/i.test(st.result ?? ""));
+          const title = `${j.meta ? `${j.meta.repo} · ${j.meta.workflow} / ${j.meta.job} #${j.meta.runNumber}` : j.repo ?? "unknown repo"}\n${new Date(s).toLocaleTimeString()} → ${j.done ? new Date(e).toLocaleTimeString() : "running"} · ${dur(e - s)}${failed ? "\nhas a failed step" : ""}`;
+          let bar = `<rect class="job${j.done ? "" : " live"}${failed ? " failed" : ""}" x="${x0.toFixed(1)}" y="${y + 6}" width="${w.toFixed(1)}" height="${LANE - 12}"><title>${esc(title)}</title></rect>`;
+          for (const st of (j.steps ?? []).slice(1)) { const sx = x(st.startedAt + skew); if (sx > x0 + 1 && sx < x1 - 1) bar += `<line class="step" x1="${sx.toFixed(1)}" x2="${sx.toFixed(1)}" y1="${y + 6}" y2="${y + LANE - 6}"/>`; }
+          for (const st of (j.steps ?? [])) if (/fail/i.test(st.result ?? "")) { const sx = x(st.startedAt + skew), ex = Math.max(x(st.startedAt + st.durationMs + skew), sx + 2); bar += `<rect class="fail" x="${sx.toFixed(1)}" y="${y + LANE - 9}" width="${(ex - sx).toFixed(1)}" height="3"/>`; }
+          const label = j.meta ? `${j.meta.repo.split("/").pop()} · ${j.meta.job}${j.done ? "" : ` · step ${(j.steps ?? []).filter((st) => !st.done).pop()?.n ?? ""}`}` : (j.repo ?? "");
+          if (w > 70 && label) bar += `<text class="lbl${j.done ? "" : " onlive"}" x="${(x0 + 6).toFixed(1)}" y="${y + LANE / 2 + 4}">${esc(label.length * 6.6 > w - 10 ? label.slice(0, Math.max(3, Math.floor((w - 14) / 6.6))) + "…" : label)}</text>`;
+          parts.push(j.meta?.runUrl ? `<a href="${esc(j.meta.runUrl)}" target="_blank" rel="noopener">${bar}</a>` : bar);
+        }
+      }
+      y += LANE;
+    });
+    const height = y + BOT;
+    const step = tickStep(win); let grid = "";
+    for (let t = Math.ceil(from / step) * step; t <= now; t += step) { const gx = x(t); grid += `<line class="grid" x1="${gx.toFixed(1)}" x2="${gx.toFixed(1)}" y1="${TOP}" y2="${y}"/><text class="tick" x="${gx.toFixed(1)}" y="${y + 16}" text-anchor="middle">${new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</text>`; }
+    grid += `<line class="now" x1="${x(now).toFixed(1)}" x2="${x(now).toFixed(1)}" y1="${TOP - 6}" y2="${y}"/><text class="tick" x="${(x(now) - 4).toFixed(1)}" y="${TOP - 8}" text-anchor="end" fill="var(--yellow)">now</text>`;
+    const wins = WINS.map(([k, v]) => `<button data-win="${v}" class="${v === win ? "on" : ""}">${k}</button>`).join("");
+    const busy = order.filter((r) => state(r) === "busy").length;
+    $("gantt").innerHTML = `<div class="bar-top"><span>timeline</span><span class="win">${wins}</span><span>${busy} running · ${order.length} runners</span><span class="legend"><span><i style="background:var(--yellow)"></i>running</span><span><i style="background:#3a3a3e"></i>done</span><span><i style="background:var(--critical);height:3px"></i>failed step</span></span></div>` +
+      `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">${grid}${parts.join("")}</svg>`;
+  }
+
   function render() {
     const list = $("list");
     for (const r of runners.values()) {
@@ -381,6 +458,7 @@
     // Busy first, then idle, then the rest; name order within a group.
     const rank = { busy: 0, idle: 1, norunner: 2, stalled: 3, connecting: 4, off: 5 };
     const order = [...runners.values()].sort((a, b) => (rank[state(a)] - rank[state(b)]) || (HRANK[health(a).level] - HRANK[health(b).level]) || natural(a.name, b.name));
+    if (view === "timeline") { try { renderGantt(order); } catch (e) { $("gantt").innerHTML = `<div class="err">${esc(e?.message ?? e)}</div>`; } }
     for (const r of order) {
       try { renderNode(r); } catch (e) { node(r).innerHTML = `<div class="row"><span class="name">${esc(r.name)}</span><span></span><span></span><span></span><span></span><span></span><span class="job none">render failed</span><span></span><span></span><span></span></div><div class="err">${esc(e?.message ?? e)}</div>`; }
       list.appendChild(node(r));
@@ -388,6 +466,7 @@
     renderTiles(); renderTable();
   }
   window.rw = runners;
+  setView(view);
   discover().then(render);
   setInterval(render, 1000);
 })();

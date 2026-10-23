@@ -71,6 +71,13 @@ yeet service mount runner-watch-hub/web -L /r/<name> -U http://<name>:9420/
 
 ## What it shows
 
+Two views, switched in the header: a list and a timeline. The timeline
+is a Gantt chart with one lane per runner and a bar per job, grey for
+completed jobs from each agent's history and yellow for the one running,
+with step boundaries drawn inside the bar, a red strip under a failed
+step, and a selectable window from 15 minutes to 24 hours. Bars link to
+the run on GitHub when the hook supplied it.
+
 Tiles for the fleet: reachable, busy, jobs completed, average cpu, share
 of runners busy, and runners with alerts, each with a sparkline.
 
