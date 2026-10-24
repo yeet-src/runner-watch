@@ -54,6 +54,15 @@ runner's user: `SSH_USER=runner scripts/deploy.sh --all`. Otherwise
 `install-hooks.sh` prints a note when the runner's user cannot read the
 hooks. Set `SUDO=sudo` if the yeet socket needs it.
 
+To run the hub on another host, `scripts/deploy-hub.sh user@host` copies
+the committed tree there over ssh and runs `install-hub.sh`; the host
+needs yeet, tailscale and python3 but not access to GitHub. The
+workflow in `.github/workflows/deploy-hub.yml` does the same from a
+self-hosted runner on every push to `main`. It needs a repository
+secret `HUB_SSH_KEY` holding a private key the hub user accepts, and
+optionally a variable `HUB_HOST` (default
+`debian@sandbox.great-lime.ts.net`).
+
 To add a runner later, `scripts/deploy.sh --all` again, or mount the
 route on the running hub:
 
@@ -67,6 +76,7 @@ yeet service mount runner-watch-hub/web -L /r/<name> -U http://<name>:9420/
 | `scripts/install-agent.sh [--name N] [--port P] [--dev]` | install the agent service on the current host |
 | `scripts/install-hooks.sh [--root DIR] [--restart]` | wire the job hook into the runner's `.env` on the current host |
 | `scripts/install-hub.sh [--port P] [--prefix P] [--runner NAME=HOST…] [--dry-run]` | install the hub on the current host |
+| `scripts/deploy-hub.sh [user@]HOST [install-hub flags]` | install the hub on another host over ssh and check it answers |
 | `scripts/fake-runner.sh [root] [repo]` | a stand-in `Runner.Listener`/`Runner.Worker` that runs a job every few seconds; `CONTAINER=1` runs the job through `docker exec` |
 
 ## What it shows

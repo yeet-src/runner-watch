@@ -1,0 +1,34 @@
+# Redeploy the hub whenever main changes. Runs on one of the self-hosted
+# runners, which share a tailnet with the hub host, and ships the tree
+# over ssh so the hub host never needs to reach GitHub.
+#
+# Needs: secret HUB_SSH_KEY (a private key accepted by the hub user),
+# optional variable HUB_HOST (default debian@sandbox.great-lime.ts.net).
+name: deploy hub
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: deploy-hub
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    env:
+      HUB_HOST: ${{ vars.HUB_HOST || 'debian@sandbox.great-lime.ts.net' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: ssh key
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.HUB_SSH_KEY }}" > ~/.ssh/hub_key
+          chmod 600 ~/.ssh/hub_key
+      - name: deploy
+        run: SSH_OPTS="-i $HOME/.ssh/hub_key" scripts/deploy-hub.sh "$HUB_HOST" --prefix github-actions-runner-
+      - name: cleanup
+        if: always()
+        run: rm -f ~/.ssh/hub_key
