@@ -33,10 +33,18 @@ else
   cp -r "$HERE/agent.js" "$HERE/metrics.js" "$HERE/llms.js" "$HERE/portal.js" "$HERE/lib" "$HERE/hooks" "$HERE/agent.service.toml" "$DIR/"
 fi
 
-yeet service stop runner-watch >/dev/null 2>&1 || true
-yeet service remove runner-watch >/dev/null 2>&1 || true
-sed -e "s|__DIR__|$DIR|g" -e "s|__NAME__|$NAME|g" -e "s|__PORT__|$PORT|g" "$DIR/agent.service.toml" \
-  | yeet service new ${DEV:+--dev} -q -y -f - >/dev/null
-yeet service start runner-watch
+render() { sed -e "s|__DIR__|$DIR|g" -e "s|__NAME__|$NAME|g" -e "s|__PORT__|$PORT|g" "$DIR/agent.service.toml"; }
+# `apply` restarts only the isolates that changed and keeps /tty served
+# throughout; older CLIs recreate the service.
+if yeet service apply --help >/dev/null 2>&1; then
+  render | yeet service apply -f - >/dev/null
+  yeet service enable runner-watch >/dev/null 2>&1 || true
+  yeet service start runner-watch >/dev/null 2>&1 || true
+else
+  yeet service stop runner-watch >/dev/null 2>&1 || true
+  yeet service remove runner-watch >/dev/null 2>&1 || true
+  render | yeet service new ${DEV:+--dev} -q -y -f - >/dev/null
+  yeet service start runner-watch
+fi
 echo "runner-watch agent '$NAME' serving ws://0.0.0.0:$PORT/tty"
 yeet service tree | grep -A3 "runner-watch)"

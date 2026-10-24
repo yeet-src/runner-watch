@@ -83,8 +83,16 @@ T
 if [ -n "$DRY" ]; then echo "$toml"; echo; echo "runners.json: $names"; exit 0; fi
 
 echo "$names" > "$HERE/public/runners.json"
-yeet service stop runner-watch-hub >/dev/null 2>&1 || true
-yeet service remove runner-watch-hub >/dev/null 2>&1 || true
-echo "$toml" | yeet service new --dev -q -y -f - >/dev/null
-yeet service start runner-watch-hub
+# `apply` rolls the change out without dropping the web server and
+# takes route changes live; older CLIs recreate the service instead.
+if yeet service apply --help >/dev/null 2>&1; then
+  echo "$toml" | yeet service apply -f - >/dev/null
+  yeet service enable runner-watch-hub >/dev/null 2>&1 || true
+  yeet service start runner-watch-hub >/dev/null 2>&1 || true
+else
+  yeet service stop runner-watch-hub >/dev/null 2>&1 || true
+  yeet service remove runner-watch-hub >/dev/null 2>&1 || true
+  echo "$toml" | yeet service new --dev -q -y -f - >/dev/null
+  yeet service start runner-watch-hub
+fi
 echo "hub: http://localhost:$PORT/  (${#RUNNERS[@]} runners)"
