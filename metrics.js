@@ -14,13 +14,13 @@ import { DOCKER_QUERY, HOST_QUERY, PROCS_QUERY, WORK_PATH, childrenIndex, cpuBus
 import { assess, cpuParts, diagSample, leftoversNow, listenerNet, waitState } from "./lib/diag.js";
 
 const args = yeet.args ?? {};
-const NAME = String(args.name ?? "runner");
+const NAME = args.name != null ? String(args.name) : null;
 const CPU_SAMPLE_MS = Math.max(50, Number(args.sample) || 250);
 
 const esc = (v) => String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
 const labels = (extra = {}) => {
-  const all = { runner: NAME, ...extra };
-  return `{${Object.entries(all).map(([k, v]) => `${k}="${esc(v)}"`).join(",")}}`;
+  const all = Object.entries({ ...(NAME != null ? { runner: NAME } : {}), ...extra });
+  return all.length ? `{${all.map(([k, v]) => `${k}="${esc(v)}"`).join(",")}}` : "";
 };
 const lines = [];
 const metric = (name, type, help, samples) => {

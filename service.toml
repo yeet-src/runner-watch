@@ -1,0 +1,41 @@
+alias = "runner-watch"
+restart = "always"
+enabled = true
+working-directory = "."
+
+# Always up: reads the system graph once a second and writes a frame
+# to its tty. The name comes from the job hook's RUNNER_NAME once a job
+# has run; `--name` pins it, which scripts/install-agent.sh does.
+[units.app]
+isolate = "./agent.js"
+args = ["--interval", "1000"]
+
+# One per GET: a sample, the exposition, exit.
+[units.metrics]
+isolate = "./metrics.js"
+lazy = true
+args = ["--sample", "250"]
+
+[units.llms]
+isolate = "./llms.js"
+lazy = true
+args = ["--sample", "250"]
+
+[units.web]
+web-server = "http://0.0.0.0:9420/"
+
+[units.web.routes."/tty"]
+target = "app"
+description = "runner status frames, one per second"
+
+[units.web.routes."/metrics"]
+target = "metrics"
+portal = "console"
+tenancy = "per-connection"
+description = "prometheus exposition, one scrape per request"
+
+[units.web.routes."/llms.txt"]
+target = "llms"
+portal = "console"
+tenancy = "per-connection"
+description = "plain-text snapshot for agents, one sample per request"

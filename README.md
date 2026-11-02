@@ -12,40 +12,73 @@ anything that would rather read text. Nothing runs inside the job, and
 the runner software is untouched apart from an optional job hook that
 supplies step names and run links.
 
-## Quick start
+## Getting started
 
-You need yeet installed and logged in on the runners and on one hub
-host, and ssh from the hub to the runners. On the hub:
+On a runner host, with yeet installed and logged in:
 
-1. Get the code.
+```sh
+curl -fsSL https://yeet.cx | sh
+yeet login
+```
 
-   ```sh
-   git clone https://github.com/yeet-src/runner-watch.git && cd runner-watch
-   ```
+Then one command. `apply` clones this repository and creates the
+agent service from its `service.toml`:
 
-2. Deploy.
+```sh
+yeet service apply -f https://github.com/yeet-src/runner-watch
+```
 
-   ```sh
-   scripts/deploy.sh --all --prefix github-actions-runner- --restart-runner
-   ```
+That starts the agent on `:9420`: `/tty` streams a frame a second,
+`/metrics` and `/llms.txt` answer per request. Run the same line again
+to move to a newer commit: `apply` rolls the change out in place, and a
+service you had stopped stays stopped.
 
-   > This uses tailscale to find every host whose name starts with the
-   > prefix, installs the agent on each over ssh, then installs the hub
-   > on this host with the same roster. It logs in as you unless you set
-   > `SSH_USER=runner` or write `user@host`; deploying as the runner's
-   > own user is simplest, since that user runs the job hook. To skip
-   > discovery, name the hosts: `scripts/deploy.sh user@host1 user@host2
-   > --restart-runner`.
+```sh
+curl -fsS localhost:9420/llms.txt            # one snapshot, as text
+yeet dial ws://127.0.0.1:9420/tty            # the frames; ctrl-c to leave
+yeet service remove -f runner-watch          # stop and remove it
+```
 
-3. Open http://localhost:9430/
+The hub is a second service on any host that can reach the runners,
+usually over Tailscale. From a checkout there:
 
-### Details
+```sh
+git clone https://github.com/yeet-src/runner-watch.git && cd runner-watch
+make hub PREFIX=github-actions-runner-
+```
 
-`deploy.sh` copies this directory to `~/runner-watch` on each runner,
-installs the agent as a yeet service on port 9420, wires the job hook
-into the runner's `.env`, and checks the agent answers from here. Rerun
-it to roll out a change. `--restart-runner` restarts an idle runner so
-the hook takes effect, since the runner reads `.env` only at startup.
+`install-hub.sh` finds every tailnet host whose name starts with the
+prefix, writes `hub.toml` with one upstream route per runner, and
+applies it. Open http://localhost:9430/. To change the roster, rerun it
+or edit `hub.toml` and `yeet service apply -f hub.toml`; to add one
+runner to the running hub without a rewrite:
+
+```sh
+yeet service mount runner-watch-hub/web -L /r/<name> -U http://<name>:9420/
+```
+
+### The whole fleet at once
+
+`scripts/deploy.sh` does both sides over ssh, plus the optional job
+hook that supplies step names and run links, which needs the checkout
+on the runner. On the hub host:
+
+```sh
+scripts/deploy.sh --all --prefix github-actions-runner- --restart-runner
+```
+
+> This uses tailscale to find every host whose name starts with the
+> prefix, copies the tree to `~/runner-watch` on each and applies the
+> agent there, wires the job hook into the runner's `.env`, then
+> installs the hub on this host with the same roster. It logs in as
+> you unless you set `SSH_USER=runner` or write `user@host`;
+> deploying as the runner's own user is simplest, since that user
+> runs the job hook. To skip discovery, name the hosts:
+> `scripts/deploy.sh user@host1 user@host2 --restart-runner`.
+
+Rerun it to roll out a change. `--restart-runner` restarts an idle
+runner so the hook takes effect, since the runner reads `.env` only at
+startup.
 
 The runner executes the job hook as its own user, which must be able to
 read `~/runner-watch/hooks` in the login user's home, and the install
@@ -63,21 +96,33 @@ secret `HUB_SSH_KEY` holding a private key the hub user accepts, and
 optionally a variable `HUB_HOST` (default
 `debian@sandbox.great-lime.ts.net`).
 
-To add a runner later, `scripts/deploy.sh --all` again, or mount the
-route on the running hub:
+### Names and ports
+
+The dashboard names each runner by its hub route, `/r/<name>/`.
+`/metrics` and `/llms.txt` on the agent carry a name too: `--name` in
+`service.toml` sets it, and without one the agent takes the
+`RUNNER_NAME` the job hook reports with the first job. Another port
+is an edit to `service.toml`'s `web-server`, or:
 
 ```sh
-yeet service mount runner-watch-hub/web -L /r/<name> -U http://<name>:9420/
+make up PORT=9421                              # this host
+scripts/install-agent.sh --name ci-3 --port 9421
 ```
+
+Both render a copy of `service.toml` with the name and port swapped
+in and apply it under the `runner-watch` alias.
 
 | script | what |
 |---|---|
-| `scripts/deploy.sh HOST… \| --all [--prefix P] [--restart-runner] [--no-hub]` | install agent and hook on runners over ssh, then the hub here (`SSH_USER`, `SSH_OPTS`, `SUDO`, `PORT`) |
-| `scripts/install-agent.sh [--name N] [--port P] [--dev]` | install the agent service on the current host |
+| `scripts/deploy.sh HOST… \| --all [--prefix P] [--restart-runner] [--no-hub]` | apply the agent and wire the hook on runners over ssh, then the hub here (`SSH_USER`, `SSH_OPTS`, `SUDO`, `PORT`) |
+| `scripts/install-agent.sh [--name N] [--port P]` | apply `service.toml` on the current host with a name and port |
 | `scripts/install-hooks.sh [--root DIR] [--restart]` | wire the job hook into the runner's `.env` on the current host |
-| `scripts/install-hub.sh [--port P] [--prefix P] [--runner NAME=HOST…] [--dry-run]` | install the hub on the current host |
+| `scripts/install-hub.sh [--port P] [--prefix P] [--runner NAME=HOST…] [--dry-run]` | write and apply `hub.toml` on the current host |
 | `scripts/deploy-hub.sh [user@]HOST [install-hub flags]` | install the hub on another host over ssh and check it answers |
 | `scripts/fake-runner.sh [root] [repo]` | a stand-in `Runner.Listener`/`Runner.Worker` that runs a job every few seconds; `CONTAINER=1` runs the job through `docker exec` |
+
+`make up`, `make hub`, `make down`, `make status` and `make check` wrap
+the common ones.
 
 ## What it shows
 
@@ -136,6 +181,11 @@ On the hub (port 9430): `/` the dashboard, `/llms.txt` an index of the
 fleet, `/runners.json` the configured names, and the manifest, which
 lists every reachable runner's routes.
 
+`service.toml` is the whole agent: three isolates and a web server.
+`hub.toml` is the hub: one static route, one lazy isolate, and an
+upstream route per runner. `yeet service apply -f <file>` rolls an
+edit to either out.
+
 `/metrics` and `/llms.txt` are per-connection console routes: each GET
 spawns an isolate that takes one sample, prints and exits, which ends
 the chunked body. Notable series: `runner_watch_health_level`,
@@ -147,6 +197,8 @@ the chunked body. Notable series: `runner_watch_health_level`,
 
 - Runners registering with the hub on their own, instead of a rerun of
   `install-hub.sh` or a mounted route.
+- Reading the hostname from the daemon, so `/metrics` is labelled
+  before the first job runs.
 - Disk usage, once the system graph exposes filesystems.
 - A fleet-wide `/llms.txt` on the hub that aggregates the runners,
   which needs isolates to be able to dial out.

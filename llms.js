@@ -15,7 +15,7 @@ import { DOCKER_QUERY, HOST_QUERY, PROCS_QUERY, WORK_PATH, cpuBusyTotal, graphQu
 import { assess, cpuParts, diagSample, leftoversNow, listenerNet, waitState } from "./lib/diag.js";
 
 const args = yeet.args ?? {};
-const NAME = String(args.name ?? "runner");
+const NAME = args.name != null ? String(args.name) : null;
 const CPU_SAMPLE_MS = Math.max(50, Number(args.sample) || 250);
 const TOP_PROCS = 8;
 
@@ -36,7 +36,7 @@ await new Promise((r) => setTimeout(r, CPU_SAMPLE_MS));
 const { data, errors } = await graphQuery(`{ ${HOST_QUERY} ${PROCS_QUERY} ${DOCKER_QUERY} }`);
 const fatal = errors?.find((e) => !/docker/i.test(e.message ?? "") && !(Array.isArray(data?.procs) && e.path?.[0] === "procs"));
 if (fatal || !data) {
-  say(`# ${NAME}`, "", `> runner-watch could not read the system graph at ${sampledAt}: ${fatal?.message ?? "no data"}`);
+  say(`# ${NAME ?? "runner"}`, "", `> runner-watch could not read the system graph at ${sampledAt}: ${fatal?.message ?? "no data"}`);
   finish();
 }
 
@@ -78,8 +78,8 @@ const hostView = {
 };
 const health = assess({ host: hostView, runners: view, leftovers, ifaces: diag?.ifaces ?? [], temp: diag?.temp ?? null });
 
-say(`# ${NAME}`, "");
-say(`> GitHub Actions self-hosted runner host "${NAME}", sampled at ${sampledAt} by runner-watch from the yeet system graph. ${runners.length} listener${runners.length === 1 ? "" : "s"}, ${busy.length} running a job, cpu ${pct(cpu)} busy, ${gb(mem.mem_total - avail)} of ${gb(mem.mem_total)} memory used.`, "");
+say(`# ${NAME ?? "runner"}`, "");
+say(`> GitHub Actions self-hosted runner host${NAME ? ` "${NAME}"` : ""}, sampled at ${sampledAt} by runner-watch from the yeet system graph. ${runners.length} listener${runners.length === 1 ? "" : "s"}, ${busy.length} running a job, cpu ${pct(cpu)} busy, ${gb(mem.mem_total - avail)} of ${gb(mem.mem_total)} memory used.`, "");
 say("Values are a single point-in-time sample. For a live stream with step names, run links and job history, read the /tty websocket described under Endpoints.", "");
 
 say(`## Health: ${health.level}`, "");

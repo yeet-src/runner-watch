@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Put the runner-watch agent on runner hosts over SSH. Each host already
-# runs yeet; this copies the project into ~/runner-watch there, installs
-# the agent service in place, and then checks the agent from here over
-# the tailnet.
+# runs yeet; this copies the project into ~/runner-watch there, applies
+# the agent service, wires the job hook, and checks the agent from here
+# over the tailnet.
 #
 #   scripts/deploy.sh HOST [HOST ...]           named hosts
 #   scripts/deploy.sh --all                     every github-actions-runner-* in tailscale
@@ -59,9 +59,9 @@ ssh_to() { # host, command…
 ok=(); failed=()
 for host in "${HOSTS[@]}"; do
   echo "== $host"
-  if tar -C "$HERE" -czf - agent.js metrics.js llms.js portal.js lib agent.service.toml hooks scripts/install-agent.sh scripts/install-hooks.sh \
+  if tar -C "$HERE" -czf - agent.js metrics.js llms.js portal.js lib service.toml hooks scripts/install-agent.sh scripts/install-hooks.sh \
     | ssh_to "$host" "set -e; mkdir -p ~/runner-watch && tar -C ~/runner-watch -xzf - \
-        && cd ~/runner-watch && ${SUDO:-} scripts/install-agent.sh --dev --port $PORT --name \$(hostname -s) \
+        && cd ~/runner-watch && ${SUDO:-} scripts/install-agent.sh --port $PORT --name \$(hostname -s) \
         && (scripts/install-hooks.sh $RESTART || echo '   (job hook not installed: no runner found or restart refused)')"; then
     if yeet dial -m "ws://$host:$PORT/" 2>/dev/null | grep -q '/tty'; then
       echo "   agent up: ws://$host:$PORT/tty"; ok+=("$host")

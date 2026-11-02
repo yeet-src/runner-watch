@@ -23,7 +23,10 @@ import { DOCKER_QUERY, HOST_QUERY, MAX_STEPS, PROCS_QUERY, WORK_PATH, childrenIn
 import { DIAG_HOST_QUERY, TCP_QUERY, assess, cpuParts, fdsOf, hottest, ifaceView, listenerNet, socketsOf, tcpIndex, waitState } from "./lib/diag.js";
 
 const args = yeet.args ?? {};
-const NAME = String(args.name ?? "runner");
+// The name is what /metrics and /llms.txt call this host. Without
+// `--name` it is learned from the first job hook message, whose
+// `runner` is the RUNNER_NAME GitHub registered.
+let NAME = args.name != null ? String(args.name) : null;
 const INTERVAL_MS = Math.max(250, Number(args.interval) || 1000);
 const HISTORY = Math.max(1, Number(args.history) || 50);
 const PLAIN = Boolean(args.plain);
@@ -57,6 +60,7 @@ function unclaimedWorker() {
 
 function onMessage(msg) {
   if (msg.t === "job") {
+    if (args.name == null && msg.runner) NAME = String(msg.runner);
     if (msg.phase === "completed") { const e = jobEntryFor(msg.key); if (e) e.completedAt = msg.ts; return; }
     const entry = unclaimedWorker();
     if (entry) entry.meta = msg; else pendingMeta.push(msg);
@@ -368,6 +372,6 @@ async function tick() {
   }
 }
 
-console.error(`runner-watch: ${NAME}, ${system.numCpus} cpus, polling every ${INTERVAL_MS}ms`);
+console.error(`runner-watch: ${NAME ?? "unnamed"}, ${system.numCpus} cpus, polling every ${INTERVAL_MS}ms`);
 await tick();
 setInterval(tick, INTERVAL_MS);

@@ -35,6 +35,6 @@ say("- /llms.txt: this document.");
 say("- /.well-known/yeet/manifest.json: the route manifest, which also lists the routes reachable through each proxy.");
 say("");
 say("## About", "");
-say("runner-watch is a pair of yeet services; source at https://github.com/yeet-src/runner-watch. The hub is install-hub.sh's output; agents are deployed with deploy.sh.");
+say("runner-watch is a pair of yeet services; source at https://github.com/yeet-src/runner-watch. Each runner runs the repository's service.toml via `yeet service apply`; the hub is hub.toml, written by scripts/install-hub.sh.");
 console.log(out.join("\n"));
 yeet.exit(0);
