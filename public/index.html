@@ -209,44 +209,54 @@
   }
   function dial(r, delay = 0) {
     setTimeout(() => {
+      if (!r.reachable || r.ws) return;
       const ws = new WebSocket(r.url); ws.binaryType = "arraybuffer";
       const dec = new TextDecoder();
       const feed = framer((f) => { if (f.t === "tick") { r.frame = f; r.at = performance.now(); r.state = "live"; r.skew = Date.now() - f.ts; } });
       ws.onopen = () => { r.state = "live"; r.at = performance.now(); r.retry = 0; };
       ws.onmessage = (m) => feed(typeof m.data === "string" ? m.data : dec.decode(new Uint8Array(m.data), { stream: true }));
-      ws.onclose = (ev) => { r.state = "off"; r.closes = (r.closes ?? 0) + 1; r.lastClose = `${ev.code} ${ev.reason}`; r.retry = Math.min((r.retry ?? 0) + 1, 6); dial(r, 1000 * 2 ** r.retry); };
+      ws.onclose = (ev) => { r.ws = null; r.state = "off"; r.closes = (r.closes ?? 0) + 1; r.lastClose = `${ev.code} ${ev.reason}`; r.retry = Math.min((r.retry ?? 0) + 1, 6); dial(r, 1000 * 2 ** r.retry); };
       ws.onerror = () => ws.close();
       r.ws = ws;
     }, delay);
   }
-  function add(name, url) {
-    if (runners.has(name)) return;
-    const r = { name, url, frame: null, at: 0, state: "connecting", retry: 0 };
-    runners.set(name, r);
-    dial(r);
+  function add(name, url, reachable) {
+    const r = runners.get(name) ?? runners.set(name, { name, url, frame: null, at: 0, state: "off", retry: 0, reachable: false, ws: null }).get(name);
+    if (reachable && !r.reachable) { r.reachable = true; r.state = "connecting"; r.retry = 0; dial(r); }
+    else if (!reachable && r.reachable) { r.reachable = false; const ws = r.ws; r.ws = null; ws?.close(); r.state = "off"; }
   }
 
   // Runners come from, in order: `?runners=name=ws://…,name=ws://…`, the
-  // hub's runners.json, then the hub's own route manifest (every runner
-  // the hub can currently reach shows up there as /r/<name>/tty).
+  // hub's runners.json, then the hub's own route manifest. Only runners
+  // the manifest lists are dialed: the hub answers an upgrade for a
+  // runner it cannot reach only after its own dial gives up, and a
+  // browser allows six pending handshakes per host, so a few dead
+  // runners would otherwise hold the live ones in the queue. The rest
+  // are listed as unreachable without a socket.
   const wsBase = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
   async function discover() {
     const q = new URLSearchParams(location.search).get("runners");
-    if (q) { for (const part of q.split(",")) { const [n, u] = part.split(/=(.*)/s); if (n && u) add(n, u); } return; }
+    if (q) { for (const part of q.split(",")) { const [n, u] = part.split(/=(.*)/s); if (n && u) add(n, u, true); } return; }
+    const listed = new Set();
     try {
       const res = await fetch("runners.json", { cache: "no-store" });
-      if (res.ok) for (const n of await res.json()) add(n, `${wsBase}/r/${encodeURIComponent(n)}/tty`);
+      if (res.ok) for (const n of await res.json()) listed.add(n);
     } catch { /* no list published */ }
+    let reachable = null;
     try {
       const res = await fetch("/.well-known/yeet/manifest.json", { cache: "no-store" });
-      if (!res.ok) return;
-      for (const route of (await res.json()).routes ?? []) {
-        const m = /^\/r\/([^/]+)\/tty$/.exec(route.path ?? "");
-        if (m) add(decodeURIComponent(m[1]), `${wsBase}${route.path}`);
+      if (res.ok) {
+        reachable = new Set();
+        for (const route of (await res.json()).routes ?? []) {
+          const m = /^\/r\/([^/]+)\/tty$/.exec(route.path ?? "");
+          if (m) reachable.add(decodeURIComponent(m[1]));
+        }
       }
     } catch { /* no manifest */ }
+    // Without a manifest, dial everything listed, as before.
+    for (const n of new Set([...listed, ...(reachable ?? [])])) add(n, `${wsBase}/r/${encodeURIComponent(n)}/tty`, reachable ? reachable.has(n) : true);
   }
-  setInterval(discover, 30000);
+  setInterval(discover, 10000);
 
   // ---------------------------------------------------------------- sparklines
   // One sample per render tick, per metric, kept in the browser and
@@ -295,7 +305,8 @@
   function health(r) {
     const st = state(r), f = r.frame;
     const reasons = [...(f?.health?.reasons ?? [])];
-    if (st === "off") reasons.push({ level: "critical", code: "unreachable", text: `agent unreachable${r.lastClose ? ` (last close ${r.lastClose})` : ""}` });
+    if (st === "off" && !r.reachable) reasons.push({ level: "critical", code: "unreachable", text: "the hub cannot reach the agent" });
+    else if (st === "off") reasons.push({ level: "critical", code: "unreachable", text: `agent unreachable${r.lastClose ? ` (last close ${r.lastClose})` : ""}` });
     else if (st === "stalled") reasons.push({ level: "warn", code: "agent_stalled", text: `no frame for ${dur(performance.now() - r.at)}` });
     else if (st === "connecting") reasons.push({ level: "warn", code: "connecting", text: "connecting to the agent" });
     if (f && Math.abs(r.skew ?? 0) > 5000) reasons.push({ level: "warn", code: "clock_skew", text: `clock ${r.skew > 0 ? "behind" : "ahead"} by ${dur(Math.abs(r.skew))}` });
