@@ -88,7 +88,7 @@ runner's user: `SSH_USER=runner scripts/deploy.sh --all`. Otherwise
 hooks. Set `SUDO=sudo` if the yeet socket needs it.
 
 The workflow in `.github/workflows/deploy-runners.yml` does the runner
-side without ssh: on every push to `main`, one job per runner runs on
+side without ssh: on `workflow_dispatch`, one job per runner runs on
 that runner, upgrades yeet, applies `service.toml` to itself and wires
 the hook. It needs passwordless sudo for the runner's user and takes
 the runner names from a repository variable `RUNNERS` (a JSON array),

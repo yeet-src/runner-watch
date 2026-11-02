@@ -1,0 +1,59 @@
+# Put some jobs on the fleet so the dashboard has something to show:
+# a matrix of short jobs with real step names, uneven durations and
+# the odd deliberate failure. Run it by hand, then look at the
+# timeline view.
+#
+#   gh workflow run exercise.yml -f jobs=24 -f minutes=3
+name: exercise
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: how many jobs to queue (1-64)
+        default: "24"
+      minutes:
+        description: rough length of each job, in minutes
+        default: "3"
+      fail_every:
+        description: fail the test step on every Nth job (0 for none)
+        default: "7"
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      ids: ${{ steps.ids.outputs.ids }}
+    steps:
+      - id: ids
+        run: |
+          n=$(( ${{ inputs.jobs }} )); [ "$n" -ge 1 ] && [ "$n" -le 64 ] || n=24
+          echo "ids=$(seq -s, 1 "$n" | sed 's/^/[/; s/$/]/')" >> "$GITHUB_OUTPUT"
+  build:
+    needs: plan
+    runs-on: self-hosted
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        id: ${{ fromJSON(needs.plan.outputs.ids) }}
+    env:
+      # Seconds per "minute" of job, stretched or squeezed per job so
+      # the bars are not all the same length.
+      SCALE: ${{ inputs.minutes }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        run: sleep $(( (${{ matrix.id }} % 5 + 2) * SCALE * 6 / 2 ))
+      - name: build
+        run: |
+          end=$(( SECONDS + (${{ matrix.id }} % 4 + 3) * SCALE * 6 ))
+          while [ $SECONDS -lt $end ]; do head -c 64M /dev/urandom | gzip -1 > /dev/null; done
+      - name: test
+        run: |
+          sleep $(( (${{ matrix.id }} % 3 + 1) * SCALE * 6 ))
+          every=$(( ${{ inputs.fail_every }} ))
+          if [ "$every" -gt 0 ] && [ $(( ${{ matrix.id }} % every )) -eq 0 ]; then echo "flaky test, job ${{ matrix.id }}"; exit 1; fi
+      - name: package
+        run: sleep $(( SCALE * 6 ))
+      - name: upload
+        run: sleep $(( (${{ matrix.id }} % 2 + 1) * SCALE * 3 ))

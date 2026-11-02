@@ -1,4 +1,4 @@
-# Redeploy the agent on every runner whenever main changes. Each job
+# Redeploy the agent on every runner, by hand. Each job
 # runs on the runner it deploys to, named by its own label, so the
 # runner upgrades yeet and applies service.toml to itself; no ssh and
 # no host that can reach the fleet. A runner that is offline leaves
@@ -10,8 +10,6 @@
 # github-actions-runner-1 … -16).
 name: deploy runners
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 concurrency:
   group: deploy-runners
