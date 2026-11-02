@@ -87,6 +87,13 @@ runner's user: `SSH_USER=runner scripts/deploy.sh --all`. Otherwise
 `install-hooks.sh` prints a note when the runner's user cannot read the
 hooks. Set `SUDO=sudo` if the yeet socket needs it.
 
+The workflow in `.github/workflows/deploy-runners.yml` does the runner
+side without ssh: on every push to `main`, one job per runner runs on
+that runner, upgrades yeet, applies `service.toml` to itself and wires
+the hook. It needs passwordless sudo for the runner's user and takes
+the runner names from a repository variable `RUNNERS` (a JSON array),
+defaulting to `github-actions-runner-1` through `-16`.
+
 To run the hub on another host, `scripts/deploy-hub.sh user@host` copies
 the committed tree there over ssh and runs `install-hub.sh`; the host
 needs yeet, tailscale and python3 but not access to GitHub. The

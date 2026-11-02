@@ -1,0 +1,51 @@
+# Redeploy the agent on every runner whenever main changes. Each job
+# runs on the runner it deploys to, named by its own label, so the
+# runner upgrades yeet and applies service.toml to itself; no ssh and
+# no host that can reach the fleet. A runner that is offline leaves
+# its job queued until it comes back, and the others do not wait.
+#
+# Needs: the runner's user can sudo without a password (the yeet
+# installer uses it) and can reach the yeet socket, or SUDO=sudo.
+# Optional variable RUNNERS: a JSON array of runner names (default
+# github-actions-runner-1 … -16).
+name: deploy runners
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: deploy-runners
+  cancel-in-progress: false
+jobs:
+  deploy:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ${{ fromJSON(vars.RUNNERS || '["github-actions-runner-1","github-actions-runner-2","github-actions-runner-3","github-actions-runner-4","github-actions-runner-5","github-actions-runner-6","github-actions-runner-7","github-actions-runner-8","github-actions-runner-9","github-actions-runner-10","github-actions-runner-11","github-actions-runner-12","github-actions-runner-13","github-actions-runner-14","github-actions-runner-15","github-actions-runner-16"]') }}
+    runs-on: [self-hosted, "${{ matrix.runner }}"]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: upgrade yeet
+        run: |
+          before=$(yeet --version 2>/dev/null || echo none)
+          curl -fsSL https://yeet.cx | sh -s -- --no-phone-home
+          echo "yeet: $before -> $(yeet --version)"
+          yeet service apply --help >/dev/null
+      - name: apply the agent
+        run: |
+          mkdir -p ~/runner-watch
+          tar -cf - agent.js metrics.js llms.js portal.js lib service.toml hooks scripts/install-agent.sh scripts/install-hooks.sh | tar -xf - -C ~/runner-watch
+          cd ~/runner-watch
+          SUDO=; yeet service list >/dev/null 2>&1 || SUDO=sudo
+          $SUDO scripts/install-agent.sh --name "$(hostname -s)"
+          $SUDO yeet service tree runner-watch
+      - name: wire the job hook
+        # A job is running (this one), so the runner is not restarted;
+        # it reads .env at its next restart. The hook path has not moved
+        # on a runner that already had it, so nothing is lost meanwhile.
+        run: cd ~/runner-watch && scripts/install-hooks.sh || echo "::warning::job hook not installed on $(hostname -s)"
+      - name: check
+        run: curl -fsS --max-time 10 localhost:9420/llms.txt | head -3

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Put the hub on a host over SSH: copy the committed tree there and run
 # install-hub.sh. The host only needs yeet (logged in), tailscale and
-# python3; it does not need to reach GitHub.
+# python3; it does not need to reach GitHub. A yeet too old for
+# `service apply` is upgraded first, which needs sudo there.
 #
 #   scripts/deploy-hub.sh [user@]HOST [install-hub.sh flags…]
 #
@@ -17,7 +18,9 @@ DIR=${HUB_DIR:-\~/runner-watch}
 echo "== $HOST"
 git -C "$HERE" archive --format=tar HEAD \
   | ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new ${SSH_OPTS:-} "$HOST" \
-      "set -e; rm -rf $DIR && mkdir -p $DIR && tar -x -C $DIR && cd $DIR && scripts/install-hub.sh $FLAGS"
+      "set -e; rm -rf $DIR && mkdir -p $DIR && tar -x -C $DIR && cd $DIR \
+       && (yeet service apply --help >/dev/null 2>&1 || curl -fsSL https://yeet.cx | sh -s -- --no-phone-home) \
+       && scripts/install-hub.sh $FLAGS"
 
 port=$(printf '%s\n' "$FLAGS" | grep -oE -- '--port [0-9]+' | awk '{print $2}' || true); port=${port:-9430}
 plain=${HOST#*@}
