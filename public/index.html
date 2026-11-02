@@ -184,7 +184,10 @@
 
   function state(r) {
     if (r.state !== "live") return r.state === "off" ? "off" : "connecting";
+    // The socket opens before the first frame, and a dead upstream
+    // may open and never send one.
     if (performance.now() - r.at > STALL_MS) return "stalled";
+    if (!r.frame) return "connecting";
     if (!r.frame.runners.length) return "norunner";
     return r.frame.runners.some((x) => x.state === "busy") ? "busy" : "idle";
   }
