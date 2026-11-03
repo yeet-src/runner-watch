@@ -8,6 +8,8 @@ job hook that supplies step names and run links.
 
 ![the timeline view](docs/timeline.gif)
 
+![the list view](docs/dashboard.png)
+
 ## Install
 
 ### On each runner machine
@@ -100,8 +102,6 @@ over ssh on every push to `main` (secret `HUB_SSH_KEY`, variable
 `make check` wrap the common ones.
 
 ## What it shows
-
-![the list view](docs/dashboard.png)
 
 - **Timeline**: one lane per runner, a bar per job, step boundaries
   inside the bar, a red strip under a failed step, 15 minutes to 24
